@@ -22,7 +22,7 @@ public class SearchController
 
 	    if (query == null || query.trim().isEmpty()) {
 	        // Redirect to the same page
-	        redirectView.setUrl("http://localhost:8080/SpringMVCSearch/home?querybox=");   // change this to your current page URL
+	        redirectView.setUrl("/home");   // change this to your current page URL
 	    } else {
 	        String url = "https://www.google.com/search?q=" + query;
 	        redirectView.setUrl(url);
