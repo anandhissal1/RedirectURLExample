@@ -1,5 +1,6 @@
 apiVersion: apps/v1
 kind: Deployment
+
 metadata:
   name: springmvcsearch
   namespace: springmvc
@@ -19,35 +20,82 @@ spec:
         app: springmvcsearch
 
     spec:
+
+      # Pod-level security
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+
       containers:
-      - name: springmvcsearch
+        - name: springmvcsearch
 
-        image: anandhissal1/springmvcsearch:latest
+          # Jenkins will replace this image tag during deployment
+          image: anandhissal1/springmvcsearch:latest
+          imagePullPolicy: Always
 
-        imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              protocol: TCP
 
-        ports:
-        - containerPort: 8080
+          # Container-level security
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
 
-        resources:
-          requests:
-            cpu: "100m"
-            memory: "256Mi"
+          # Resource configuration
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
 
-          limits:
-            cpu: "500m"
-            memory: "512Mi"
+          # Writable directories required by Tomcat
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
 
-        readinessProbe:
-          httpGet:
-            path: /home
-            port: 8080
-          initialDelaySeconds: 20
-          periodSeconds: 10
+            - name: tomcat-temp
+              mountPath: /usr/local/tomcat/temp
 
-        livenessProbe:
-          httpGet:
-            path: /home
-            port: 8080
-          initialDelaySeconds: 30
-          periodSeconds: 20
+            - name: tomcat-work
+              mountPath: /usr/local/tomcat/work
+
+          # Application readiness
+          readinessProbe:
+            httpGet:
+              path: /home
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+
+          # Application liveness
+          livenessProbe:
+            httpGet:
+              path: /home
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+
+      # Writable volumes while root filesystem remains read-only
+      volumes:
+        - name: tmp
+          emptyDir: {}
+
+        - name: tomcat-temp
+          emptyDir: {}
+
+        - name: tomcat-work
+          emptyDir: {}
