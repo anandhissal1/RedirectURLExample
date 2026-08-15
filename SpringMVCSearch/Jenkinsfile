@@ -1,0 +1,289 @@
+pipeline {
+
+    agent any
+
+    /*
+     * Automatically trigger this pipeline when GitHub sends
+     * a push webhook to Jenkins.
+     */
+    triggers {
+        githubPush()
+    }
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+    }
+
+    environment {
+
+        // DockerHub
+        DOCKER_IMAGE = 'anandhissal1/springmvcsearch'
+
+        // SonarQube
+        SONAR_PROJECT_KEY = 'SpringMVCSearch'
+        SONAR_PROJECT_NAME = 'SpringMVCSearch'
+
+        // Kubernetes
+        K8S_NAMESPACE = 'springmvc'
+        K8S_DEPLOYMENT = 'springmvcsearch'
+        K8S_CONTAINER = 'springmvcsearch'
+
+        // Kubernetes kubeconfig on Jenkins server
+        KUBECONFIG = '/var/lib/jenkins/.kube/config'
+    }
+
+    stages {
+
+        /*
+         * 1. CHECKOUT
+         */
+        stage('Git Checkout') {
+            steps {
+                echo "Checking out source code from GitHub..."
+
+                checkout scm
+            }
+        }
+
+
+        /*
+         * 2. MAVEN BUILD
+         */
+        stage('Maven Build') {
+            steps {
+                echo "Building Spring MVC application..."
+
+                sh '''
+                    chmod +x mvnw
+
+                    ./mvnw clean verify
+                '''
+            }
+        }
+
+
+        /*
+         * 3. SONARQUBE ANALYSIS
+         */
+        stage('SonarQube Analysis') {
+            steps {
+
+                echo "Running SonarQube analysis..."
+
+                withSonarQubeEnv('SonarQube') {
+
+                    sh '''
+                        ./mvnw sonar:sonar \
+                          -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                          -Dsonar.projectName=${SONAR_PROJECT_NAME}
+                    '''
+                }
+            }
+        }
+
+
+        /*
+         * 4. SONARQUBE QUALITY GATE
+         *
+         * Jenkins waits here until SonarQube sends
+         * the webhook response.
+         */
+        stage('SonarQube Quality Gate') {
+            steps {
+
+                echo "Waiting for SonarQube Quality Gate..."
+
+                timeout(time: 10, unit: 'MINUTES') {
+
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+
+        /*
+         * 5. GITLEAKS
+         */
+        stage('Gitleaks Scan') {
+            steps {
+
+                echo "Running Gitleaks secret scan..."
+
+                sh '''
+                    gitleaks version
+
+                    gitleaks detect \
+                      --source . \
+                      --no-banner \
+                      --redact
+                '''
+            }
+        }
+
+
+        /*
+         * 6. TRIVY FILESYSTEM SCAN
+         */
+        stage('Trivy Filesystem Scan') {
+            steps {
+
+                echo "Running Trivy filesystem scan..."
+
+                sh '''
+                    trivy fs \
+                      --scanners vuln,misconfig \
+                      --severity HIGH,CRITICAL \
+                      --exit-code 1 \
+                      .
+                '''
+            }
+        }
+
+
+        /*
+         * 7. DOCKER BUILD
+         *
+         * BUILD_NUMBER gives every Jenkins build
+         * a unique Docker image tag.
+         *
+         * Build #1 -> :1
+         * Build #2 -> :2
+         * Build #3 -> :3
+         */
+        stage('Docker Build') {
+            steps {
+
+                echo "Building Docker image..."
+                echo "Image: ${DOCKER_IMAGE}:${BUILD_NUMBER}"
+
+                sh '''
+                    docker build \
+                      -t ${DOCKER_IMAGE}:${BUILD_NUMBER} \
+                      .
+                '''
+            }
+        }
+
+
+        /*
+         * 8. TRIVY DOCKER IMAGE SCAN
+         */
+        stage('Trivy Image Scan') {
+            steps {
+
+                echo "Scanning Docker image with Trivy..."
+
+                sh '''
+                    trivy image \
+                      --severity HIGH,CRITICAL \
+                      --exit-code 1 \
+                      ${DOCKER_IMAGE}:${BUILD_NUMBER}
+                '''
+            }
+        }
+
+
+        /*
+         * 9. DOCKER PUSH
+         */
+        stage('Docker Push') {
+            steps {
+
+                echo "Pushing Docker image to DockerHub..."
+
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-credentials',
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )
+                ]) {
+
+                    sh '''
+                        echo "$DOCKER_PASSWORD" | \
+                          docker login \
+                          -u "$DOCKER_USERNAME" \
+                          --password-stdin
+
+                        docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
+
+                        docker logout
+                    '''
+                }
+            }
+        }
+
+
+        /*
+         * 10. KUBERNETES DEPLOYMENT
+         */
+        stage('Deploy to Kubernetes') {
+            steps {
+
+                echo "Deploying application to Kubernetes..."
+
+                sh '''
+                    echo "Checking Kubernetes connection..."
+
+                    kubectl get nodes
+
+                    echo "Applying Kubernetes deployment..."
+
+                    kubectl apply \
+                      -f kubernetes/deployment.yaml \
+                      -n ${K8S_NAMESPACE}
+
+                    echo "Updating deployment image..."
+
+                    kubectl set image \
+                      deployment/${K8S_DEPLOYMENT} \
+                      ${K8S_CONTAINER}=${DOCKER_IMAGE}:${BUILD_NUMBER} \
+                      -n ${K8S_NAMESPACE}
+
+                    echo "Waiting for rollout..."
+
+                    kubectl rollout status \
+                      deployment/${K8S_DEPLOYMENT} \
+                      -n ${K8S_NAMESPACE} \
+                      --timeout=5m
+                '''
+            }
+        }
+    }
+
+
+    /*
+     * POST ACTIONS
+     */
+    post {
+
+        success {
+            echo """
+            ==========================================
+            PIPELINE SUCCESSFUL
+            ==========================================
+            Build Number : ${BUILD_NUMBER}
+            Docker Image : ${DOCKER_IMAGE}:${BUILD_NUMBER}
+            Kubernetes   : ${K8S_DEPLOYMENT}
+            Namespace    : ${K8S_NAMESPACE}
+            ==========================================
+            """
+        }
+
+        failure {
+            echo """
+            ==========================================
+            PIPELINE FAILED
+            ==========================================
+            Build Number : ${BUILD_NUMBER}
+            Check the Jenkins console output.
+            ==========================================
+            """
+        }
+
+        always {
+            echo "Pipeline execution completed."
+        }
+    }
+}
