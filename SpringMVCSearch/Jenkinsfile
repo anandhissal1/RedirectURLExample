@@ -174,36 +174,49 @@ pipeline {
 
         stage('Deploy to Kubernetes') {
             steps {
-
                 dir('SpringMVCSearch') {
-
                     echo 'Deploying application to Kubernetes...'
-
+        
                     sh '''
+                        set -e
+        
+                        echo "Checking Kubernetes connectivity..."
                         kubectl get nodes
-
+        
+                        echo "Applying Deployment..."
                         kubectl apply \
                           -f kubernetes/deployment.yaml \
                           -n ${K8S_NAMESPACE}
-
+        
+                        echo "Applying Service..."
                         kubectl apply \
                           -f kubernetes/service.yaml \
                           -n ${K8S_NAMESPACE}
-
+        
+                        echo "Updating image..."
                         kubectl set image \
                           deployment/${K8S_DEPLOYMENT} \
                           ${K8S_CONTAINER}=${DOCKER_IMAGE}:${BUILD_NUMBER} \
                           -n ${K8S_NAMESPACE}
-
+        
+                        echo "Waiting for rollout..."
                         kubectl rollout status \
                           deployment/${K8S_DEPLOYMENT} \
                           -n ${K8S_NAMESPACE} \
                           --timeout=5m
+        
+                        echo "Deployment completed successfully."
+        
+                        kubectl get deployment ${K8S_DEPLOYMENT} \
+                          -n ${K8S_NAMESPACE}
+        
+                        kubectl get pods \
+                          -n ${K8S_NAMESPACE} \
+                          -l app=springmvcsearch
                     '''
                 }
             }
         }
-    }
 
     post {
 
