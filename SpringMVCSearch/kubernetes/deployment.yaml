@@ -20,7 +20,6 @@ spec:
         app: springmvcsearch
 
     spec:
-
       # Pod-level security
       securityContext:
         runAsNonRoot: true
@@ -72,20 +71,20 @@ spec:
             httpGet:
               path: /home
               port: 8080
-              initialDelaySeconds: 30
-              periodSeconds: 10
-              timeoutSeconds: 5
-              failureThreshold: 6
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
 
           # Application liveness
           livenessProbe:
             httpGet:
               path: /home
               port: 8080
-              initialDelaySeconds: 60
-              periodSeconds: 20
-              timeoutSeconds: 5
-              failureThreshold: 3
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
 
       # Writable volumes while root filesystem remains read-only
       volumes:
