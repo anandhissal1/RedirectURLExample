@@ -46,18 +46,10 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-
                 dir('SpringMVCSearch') {
-
                     echo 'Running SonarQube analysis...'
-
                     withSonarQubeEnv('SonarQube') {
-
-                        sh '''
-                            ./mvnw sonar:sonar \
-                              -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                              -Dsonar.projectName=${SONAR_PROJECT_NAME}
-                        '''
+                        sh 'mvn sonar:sonar -Dsonar.projectKey=SpringMVCSearch -Dsonar.projectName=SpringMVCSearch'
                     }
                 }
             }
