@@ -32,7 +32,7 @@ spec:
         - name: springmvcsearch
 
           # Jenkins will replace this image tag during deployment
-          image: anandhissal1/springmvcsearch:1
+          image: anandhissal1/springmvcsearch:16
           imagePullPolicy: Always
 
           ports:
@@ -72,22 +72,20 @@ spec:
             httpGet:
               path: /home
               port: 8080
-            initialDelaySeconds: 20
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 3
-            successThreshold: 1
+              initialDelaySeconds: 30
+              periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 6
 
           # Application liveness
           livenessProbe:
             httpGet:
               path: /home
               port: 8080
-            initialDelaySeconds: 30
-            periodSeconds: 20
-            timeoutSeconds: 5
-            failureThreshold: 3
-            successThreshold: 1
+              initialDelaySeconds: 60
+              periodSeconds: 20
+              timeoutSeconds: 5
+              failureThreshold: 3
 
       # Writable volumes while root filesystem remains read-only
       volumes:
