@@ -22,7 +22,7 @@ spec:
       containers:
       - name: springmvcsearch
 
-        image: anandhissal1/springmvcsearch:v5
+        image: anandhissal1/springmvcsearch:latest
 
         imagePullPolicy: Always
 
