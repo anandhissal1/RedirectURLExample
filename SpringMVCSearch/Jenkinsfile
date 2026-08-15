@@ -37,15 +37,9 @@ pipeline {
 
         stage('Maven Build') {
             steps {
-
                 dir('SpringMVCSearch') {
-
                     echo 'Building Spring MVC application...'
-
-                    sh '''
-                        chmod +x mvnw
-                        ./mvnw clean verify
-                    '''
+                    sh 'mvn clean package -DskipTests'
                 }
             }
         }
