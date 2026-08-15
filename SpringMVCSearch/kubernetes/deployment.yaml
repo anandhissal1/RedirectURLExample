@@ -32,7 +32,7 @@ spec:
         - name: springmvcsearch
 
           # Jenkins will replace this image tag during deployment
-          image: anandhissal1/springmvcsearch:latest
+          image: anandhissal1/springmvcsearch:1
           imagePullPolicy: Always
 
           ports:
