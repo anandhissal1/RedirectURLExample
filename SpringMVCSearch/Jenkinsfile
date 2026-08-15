@@ -48,20 +48,29 @@ pipeline {
             steps {
                 dir('SpringMVCSearch') {
                     echo 'Running SonarQube analysis...'
-                    withSonarQubeEnv('SonarQube') {
-                        sh 'mvn sonar:sonar -Dsonar.projectKey=SpringMVCSearch -Dsonar.projectName=SpringMVCSearch'
+        
+                    script {
+                        def scannerHome = tool 'SonarScanner'
+        
+                        withSonarQubeEnv('SonarQube') {
+                            sh """
+                                ${scannerHome}/bin/sonar-scanner \
+                                -Dsonar.projectKey=SpringMVCSearch \
+                                -Dsonar.projectName=SpringMVCSearch \
+                                -Dsonar.sources=src/main/java \
+                                -Dsonar.java.binaries=target/classes
+                            """
+                        }
                     }
                 }
             }
         }
-
+        
         stage('SonarQube Quality Gate') {
             steps {
-
                 echo 'Waiting for SonarQube Quality Gate...'
-
+        
                 timeout(time: 10, unit: 'MINUTES') {
-
                     waitForQualityGate abortPipeline: true
                 }
             }
